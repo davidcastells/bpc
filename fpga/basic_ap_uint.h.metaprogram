@@ -1,0 +1,1024 @@
+<%
+// This are global functions that go before the main :-)
+void inline_decoder_4_16(char* w, char* sel)
+{
+	for (int i=0; i < 4; i++){ printf("	int bit%d = (%s >> %d) & 0x1;\n",i, w, i);}
+	for (int i=0; i < 4; i++){ printf("	int nbit%d = (~bit%d) & 0x1;\n",i,i);}
+
+	for (int i=0; i < 16; i++)
+	{
+		printf("\tint %s%d=", sel, i);
+		for (int k=0; k < 4; k++)
+		{
+			if (k > 0) printf(" & ");
+			if ((i >> k) & 0x1) printf("bit%d",k); else printf("nbit%d",k);
+		} 
+		printf(";\n");
+	}
+}
+
+void inline_decoder_5_32(char* w, char* sel)
+{
+	for (int i=0; i < 5; i++){ printf("	int bit%d = (%s >> %d) & 0x1;\n",i, w, i);}
+	for (int i=0; i < 5; i++){ printf("	int nbit%d = (~bit%d) & 0x1;\n",i,i);}
+
+	for (int i=0; i < 32; i++)
+	{
+		printf("\tint %s%d=", sel, i);
+		for (int k=0; k < 5; k++)
+		{
+			if (k > 0) printf(" & ");
+			if ((i >> k) & 0x1) printf("bit%d",k); else printf("nbit%d",k);
+		} 
+		printf(";\n");
+	}
+}
+%>
+
+// the numbers are stored in less significant order 
+
+#ifndef FALSE
+#define FALSE 0
+#endif
+
+typedef struct 
+{<%
+for (int i=0; i < 512/32; i++)
+{%>
+	unsigned int w<%printf("%d",i);%>;<%
+}
+%>
+} ap_uint_512;
+
+typedef ap_uint_512* ap_uint_512p;
+
+typedef struct 
+{
+<%
+for (int i=0; i < 1024/32; i++)
+{%>
+	unsigned int w<%printf("%d",i);%>;<%
+}
+%>
+	
+} ap_uint_1024;
+
+typedef ap_uint_1024* ap_uint_1024p;
+
+#define AP_UINT_PTR(x)		&(x)
+#define AP_UINT_FROM_PTR(x)	*x
+
+
+
+void 		ap_uint_512_orLowByteConcurrent(ap_uint_512p v, int index, int value);
+int 		ap_uint_512_get_bit(ap_uint_512 x, int bit);
+int 		ap_uint_512_get_bit_high(ap_uint_512 x, int bit);
+unsigned char 	ap_uint_512_getHighByte(ap_uint_512 v, int index);
+unsigned int 	ap_uint_512_getDword(ap_uint_512 v, int index);
+unsigned char 	ap_uint_512_getLowByte(ap_uint_512 v, int index);
+int 		ap_uint_512_isZero(ap_uint_512 v);
+void 		ap_uint_512_or_bit(ap_uint_512p v, int bit, int x);
+unsigned int 	ap_uint_512_pop_count(ap_uint_512 x);
+unsigned int 	ap_uint_512_range_high_32(ap_uint_512 p, unsigned int offset, unsigned int size);
+void 		ap_uint_512_set_bit(ap_uint_512p v, int bit, int x);
+void 		ap_uint_512_set_range_high_32(ap_uint_512p p, unsigned int offset, unsigned int size, unsigned int value);
+void 		ap_uint_512_setDword(ap_uint_512p v, int wordidx, unsigned int value);
+void 		ap_uint_512_setLowByte(ap_uint_512p v, int index, int value);
+void 		ap_uint_512_shift_left(ap_uint_512 x, unsigned int shift, ap_uint_512p r);
+void 		ap_uint_512_shift_right(ap_uint_512 x, unsigned int shift, ap_uint_512p r);
+void 		ap_uint_512_zero(ap_uint_512p v);
+
+int 		ap_uint_1024_get_bit(ap_uint_1024 x, int bit);
+void 		ap_uint_1024_or_bit(ap_uint_1024p v, int bit, int x);
+unsigned int 	ap_uint_1024_pop_count(ap_uint_1024 x);
+unsigned int 	ap_uint_1024_range_high_32(ap_uint_1024 p, unsigned int offset, unsigned int size);
+void 		ap_uint_1024_set_range_high_32(ap_uint_1024p p, unsigned int offset, unsigned int size, unsigned int value);
+void 		ap_uint_1024_setDword(ap_uint_1024p v, int wordidx, unsigned int value);
+
+
+#ifdef FPGA_EMULATION
+
+	#define assert(x) assert_function(x, __FILE__, __LINE__)
+
+	void assert_function(int condition, char* file, int line)
+	{
+	    if (!condition)
+		printf("ASSERTION FAILED IN %s %d\n", file, line);
+	}
+
+#endif
+
+
+int ap_uint_512_get_bit(ap_uint_512 x, int bit)
+{
+
+	int wordidx = bit >> 5; // int wordidx = bit / 32;
+	int bitidx = bit & 0x1F; // int bitidx = (bit % 32);
+
+<%inline_decoder_4_16("wordidx", "sel");%>
+
+<% for (int i=0; i < 512/32; i++){%>	
+	if (sel<%printf("%d", i);%>) { return (x.w<%printf("%d", i);%> >> bitidx) & 0x1;}<%}%>
+
+	return 0;
+}
+
+int ap_uint_512_get_bit_high(ap_uint_512 x, int bit)
+{
+	return ap_uint_512_get_bit(x, 512-1-bit);
+}
+
+
+int ap_uint_1024_get_bit(ap_uint_1024 x, int bit)
+{
+
+	int wordidx = bit >> 5; // int wordidx = bit / 32;
+	int bitidx = bit & 0x1F; // int bitidx = (bit % 32);
+
+<%inline_decoder_5_32("wordidx", "sel");%>
+
+<% for (int i=0; i < 1024/32; i++){%>	
+	if (sel<%printf("%d", i);%>) { return (x.w<%printf("%d", i);%> >> bitidx) & 0x1;}<%}%>
+
+	return 0;
+}
+
+
+/**
+* Sets a byte in a 32bits word of the 512 stream.
+*/
+void ap_uint_512_set_word_byte(ap_uint_512p v, int wordidx, int byteidx, unsigned int value)
+{
+	unsigned int mask = (0xFF << (byteidx * 8));
+	unsigned int nmask = ~mask;
+
+<%inline_decoder_4_16("wordidx", "sel");%>
+	<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	if (sel<%printf("%d",i);%>){ v->w<%printf("%d",i);%> = (v->w<%printf("%d",i);%> & nmask) | (value << (byteidx*8)); }<%
+	}%>			
+}
+
+/**
+* Sets a byte in a 32bits word of the 1024 word.
+*/
+void ap_uint_1024_set_word_byte(ap_uint_1024p v, int wordidx, int byteidx, unsigned int value)
+{
+	unsigned int mask = (0xFF << (byteidx * 8));
+	unsigned int nmask = ~mask;
+
+<%inline_decoder_5_32("wordidx", "sel");%>
+	<%
+	for (int i=0; i < 1024/32; i++)
+	{%>
+	if (sel<%printf("%d",i);%>){ v->w<%printf("%d",i);%> = (v->w<%printf("%d",i);%> & nmask) | (value << (byteidx*8)); }<%
+	}%>			
+}
+
+void ap_uint_512_or_word_byte(ap_uint_512p v, int wordidx, int byteidx, unsigned int value)
+{
+<%inline_decoder_4_16("wordidx", "sel");%>
+
+	<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	if (sel<%printf("%d",i);%>){ v->w<%printf("%d",i);%> = v->w<%printf("%d",i);%>  | (value << (byteidx*8)); }<%
+	}%>	
+	
+}
+
+void ap_uint_1024_or_word_byte(ap_uint_1024p v, int wordidx, int byteidx, unsigned int value)
+{
+<%inline_decoder_5_32("wordidx", "sel");%>
+
+	<%
+	for (int i=0; i < 1024/32; i++)
+	{%>
+	if (sel<%printf("%d",i);%>){ v->w<%printf("%d",i);%> = v->w<%printf("%d",i);%>  | (value << (byteidx*8)); }<%
+	}%>	
+	
+}
+
+/**
+* Sets a byte value in the lowest n byte of the number (starting from the right / LSB)
+*	
+* @param v pointer to the number
+* @param index base position in bytes
+* @param value to set
+*/
+void ap_uint_512_setLowByte(ap_uint_512p v, int index, int value)
+{	
+	int wordidx = index >> 2; // int wordidx = (index * 8) / 32;
+	int byteidx = index & 0x3; // int byteidx = (index % (32/8));
+	
+	ap_uint_512_set_word_byte(v, wordidx, byteidx, value);
+
+}
+
+void ap_uint_1024_setLowByte(ap_uint_1024p v, int index, int value)
+{	
+	int wordidx = index >> 2; // int wordidx = (index * 8) / 32;
+	int byteidx = index & 0x3; // int byteidx = (index % (32/8));
+	
+	ap_uint_1024_set_word_byte(v, wordidx, byteidx, value);
+
+}
+
+void ap_uint_512_orLowByteConcurrent(ap_uint_512p v, int index, int value)
+{	
+	int wordidx = index >> 2; // int wordidx = (index * 8) / 32;
+	int byteidx = index & 0x3; // int byteidx = (index % (32/8));
+	
+	ap_uint_512_or_word_byte(v, wordidx, byteidx, value);
+}
+
+void ap_uint_1024_orLowByteConcurrent(ap_uint_1024p v, int index, int value)
+{	
+	int wordidx = index >> 2; // int wordidx = (index * 8) / 32;
+	int byteidx = index & 0x3; // int byteidx = (index % (32/8));
+	
+	ap_uint_1024_or_word_byte(v, wordidx, byteidx, value);
+}
+
+void ap_uint_512_setHighByte(ap_uint_512p v, int index, int value)
+{	
+	ap_uint_512_setLowByte(v, (512/8) - 1 - index, value);
+}
+
+void ap_uint_1024_setHighByte(ap_uint_1024p v, int index, int value)
+{	
+	ap_uint_1024_setLowByte(v, (1024/8) - 1 - index, value);
+}
+
+void ap_uint_512_orHighByteConcurrent(ap_uint_512p v, int index, int value)
+{	
+	ap_uint_512_orLowByteConcurrent(v, (512/8) - 1 - index, value);
+}
+
+void ap_uint_1024_orHighByteConcurrent(ap_uint_1024p v, int index, int value)
+{	
+	ap_uint_1024_orLowByteConcurrent(v, (1024/8) - 1 - index, value);
+}
+
+unsigned char ap_uint_512_getHighByte(ap_uint_512 v, int index)
+{
+	return ap_uint_512_getLowByte(v, (512/8) - 1 - index);
+}
+
+/**
+* @param one of the 64 bytes of the 512 bits word
+*/
+unsigned char ap_uint_512_getLowByte(ap_uint_512 v, int index)
+{
+	int wordidx = (index >> 2); 	// int wordidx = (index * 8) / 32;
+	int byteidx = (index & 0x03);	// (index % (32/8));
+
+	unsigned int dword = ap_uint_512_getDword(v, wordidx);
+
+	return (dword >> (8*byteidx)) & 0xFF;
+}
+
+void ap_uint_512_setDword(ap_uint_512p v, int wordidx, unsigned int value)
+{	
+<%inline_decoder_4_16("wordidx", "sel");%>
+
+	<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	if (sel<%printf("%d",i);%>){ v->w<%printf("%d",i);%>=value;}<%
+	}%>	
+}
+
+
+void ap_uint_1024_setDword(ap_uint_1024p v, int wordidx, unsigned int value)
+{	
+<%inline_decoder_5_32("wordidx", "sel");%>
+
+	<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	if (sel<%printf("%d",i);%>){ v->w<%printf("%d",i);%>=value;}<%
+	}%>	
+}
+
+unsigned int ap_uint_512_getDword(ap_uint_512 v, int wordidx)
+{	
+<%inline_decoder_4_16("wordidx", "sel");%>
+
+	<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	if (sel<%printf("%d",i);%>){ return v.w<%printf("%d",i);%>;}<%
+	}%>	
+
+
+
+#ifdef FPGA_EMULATION
+	assert(FALSE);
+#endif
+	return 0;
+}
+
+unsigned int ap_uint_1024_getDword(ap_uint_1024 v, int wordidx)
+{	
+<%inline_decoder_5_32("wordidx", "sel");%>
+
+	<%
+	for (int i=0; i < 1024/32; i++)
+	{%>
+	if (sel<%printf("%d",i);%>){ return v.w<%printf("%d",i);%>;}<%
+	}%>	
+
+
+
+#ifdef FPGA_EMULATION
+	assert(FALSE);
+#endif
+	return 0;
+}
+
+
+/**
+* Resets the variable (set to zero)
+*/
+void ap_uint_512_zero(ap_uint_512p v)
+{<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	v->w<%printf("%d",i);%> = 0;<%
+	}%>	
+}
+
+/**
+* Resets the variable (set to zero)
+*/
+void ap_uint_1024_zero(ap_uint_1024p v)
+{<%
+	for (int i=0; i < 1024/32; i++)
+	{%>
+	v->w<%printf("%d",i);%> = 0;<%
+	}%>	
+}
+
+
+int ap_uint_512_isZero(ap_uint_512 v)
+{
+	if (<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+		(v.w<%printf("%d",i);%> == 0) &&<%}%>
+		1)	 return 1;
+	else return 0;
+}
+
+void ap_uint_512_set(ap_uint_512p dst, ap_uint_512 src)
+{
+<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	dst->w<%printf("%d",i);%> = src.w<%printf("%d",i);%>;<%}%>
+}
+
+
+/**
+* Copies a variable to another 
+* @param destination
+* @param source
+*/
+void ap_uint_1024_set(ap_uint_1024p dst, ap_uint_1024 src)
+{
+<%
+	for (int i=0; i < 1024/32; i++)
+	{%>
+	dst->w<%printf("%d",i);%> = src.w<%printf("%d",i);%>;<%}%>
+
+}
+
+void ap_uint_512_set_bit(ap_uint_512p v, int bit, int x)
+{
+	int wordidx = bit >> 5; // int wordidx = bit / 32;
+	int bitidx = bit & 0x1F; // int bitidx = (bit % 32);
+
+<%inline_decoder_4_16("wordidx", "sel");%>
+
+<% for (int i=0; i < 512/32; i++){%>	
+	if (sel<%printf("%d",i);%>) if (x) v->w<%printf("%d",i);%> |= (1 << bitidx); else v->w<%printf("%d",i);%> &= (~(1 << bitidx));<%}%>
+
+}
+
+
+/**
+* Sets a bit in a 1024 bits word
+*/
+void ap_uint_1024_set_bit(ap_uint_1024p v, int bit, int x)
+{
+	int wordidx = bit >> 5; // int wordidx = bit / 32;
+	int bitidx = bit & 0x1F; // int bitidx = (bit % 32);
+	
+<%inline_decoder_5_32("wordidx", "sel");%>
+
+<% for (int i=0; i < 1024/32; i++){%>	
+	if (sel<%printf("%d",i);%>) if (x) v->w<%printf("%d",i);%> |= (1 << bitidx); else v->w<%printf("%d",i);%> &= (~(1 << bitidx));<%}%>
+
+}
+
+void ap_uint_512_or_high_bit(ap_uint_512p v, int bit, int x)
+{	
+	ap_uint_512_or_bit(v, 512 - 1 - bit, x);
+}
+
+void ap_uint_1024_or_high_bit(ap_uint_1024p v, int bit, int x)
+{	
+	ap_uint_1024_or_bit(v, 1024 - 1 - bit, x);
+}
+
+void ap_uint_512_or_bit(ap_uint_512p v, int bit, int x)
+{
+	int wordidx = bit >> 5; // int wordidx = bit / 32;
+	int bitidx = bit & 0x1F; // int bitidx = (bit % 32);
+
+
+<%inline_decoder_4_16("wordidx", "sel");%>
+
+<% for (int i=0; i < 512/32; i++){%>	
+	if (sel<%printf("%d",i);%>){ v->w<%printf("%d",i);%> |= (x) ? (1 << bitidx) : 0; }<%}%>
+	
+}
+
+
+void ap_uint_1024_or_bit(ap_uint_1024p v, int bit, int x)
+{
+	int wordidx = bit >> 5; // int wordidx = bit / 32;
+	int bitidx = bit & 0x1F; // int bitidx = (bit % 32);
+
+<%inline_decoder_5_32("wordidx", "sel");%>
+
+<% for (int i=0; i < 1024/32; i++){%>	
+	if (sel<%printf("%d",i);%>){ v->w<%printf("%d",i);%> |= (x) ? (1 << bitidx) : 0; }<%}%>
+	
+}
+
+
+void ap_uint_512_onesLow(ap_uint_512p v, int n)
+{
+	ap_uint_512_zero(v);
+
+	<%for (int i=0; i < 512; i++){%>
+	ap_uint_512_or_bit(v, <%printf("%d",i);%>, (<%printf("%d",i);%><n)?1:0);<%}%>
+}
+
+void ap_uint_512_onesHigh(ap_uint_512p v, int n)
+{
+	ap_uint_512_zero(v);
+
+	<%
+	for (int i=0; i < 512; i++)
+	{%>
+	ap_uint_512_or_bit(v, 512-1-<%printf("%d",i);%>, (<%printf("%d",i);%><n)?1:0);<%}%>
+}
+
+void ap_uint_1024_onesHigh(ap_uint_1024p v, int n)
+{
+	ap_uint_1024_zero(v);
+
+	<%
+	for (int i=0; i < 1024; i++)
+	{%>
+	ap_uint_1024_or_bit(v, 1024-1-<%printf("%d",i);%>, (<%printf("%d",i);%><n)?1:0);<%}%>
+}
+
+void ap_uint_512_not(ap_uint_512 x, ap_uint_512p ret)
+{
+<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	ret->w<%printf("%d", i);%> = ~x.w<%printf("%d", i);%>;<%}%>
+}
+
+void ap_uint_512_and(ap_uint_512 a, ap_uint_512 b, ap_uint_512p ret)
+{
+<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	ret->w<%printf("%d", i);%> = a.w<%printf("%d", i);%> & b.w<%printf("%d", i);%>;<%}%>
+}
+
+void ap_uint_512_and_self(ap_uint_512p a, ap_uint_512 b)
+{
+<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	a->w<%printf("%d", i);%> &= b.w<%printf("%d", i);%>;<%}%>
+}
+
+void ap_uint_1024_and_self(ap_uint_1024p a, ap_uint_1024 b)
+{
+<%
+	for (int i=0; i < 1024/32; i++)
+	{%>
+	a->w<%printf("%d", i);%> &= b.w<%printf("%d", i);%>;<%}%>
+}
+
+void ap_uint_512_or(ap_uint_512 a, ap_uint_512 b, ap_uint_512p ret)
+{
+<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	ret->w<%printf("%d", i);%> = a.w<%printf("%d", i);%> | b.w<%printf("%d", i);%>;<%}%>
+}
+
+void ap_uint_1024_or(ap_uint_1024 a, ap_uint_1024 b, ap_uint_1024p ret)
+{
+<%
+	for (int i=0; i < 1024/32; i++)
+	{%>
+	ret->w<%printf("%d", i);%> = a.w<%printf("%d", i);%> | b.w<%printf("%d", i);%>;<%}%>
+
+}
+
+void ap_uint_1024_or_self(ap_uint_1024p a, ap_uint_1024 b)
+{
+<%
+	for (int i=0; i < 1024/32; i++)
+	{%>
+	a->w<%printf("%d", i);%> |= b.w<%printf("%d", i);%>;<%}%>
+}
+
+
+
+void ap_uint_512_xor(ap_uint_512 a, ap_uint_512 b, ap_uint_512p ret)
+{
+<%
+	for (int i=0; i < 512/32; i++)
+	{%>
+	ret->w<%printf("%d", i);%> = a.w<%printf("%d", i);%> ^ b.w<%printf("%d", i);%>;<%}%>
+	
+}
+
+unsigned int uint32_popCount(unsigned int w)
+{<%for (int k=0; k < 32; k++) {%>
+    unsigned char v<%printf("%d",k);%> = (w >> <%printf("%d",k);%>) & 0x1;<%}%>
+    
+    return <%for (int k=0; k < 32; k++) {%>v<%printf("%d",k);%>+<%}%> 0 ;
+}
+
+
+unsigned int ap_uint_512_pop_count(ap_uint_512 x)
+{
+	unsigned int p=0;
+<%for (int k=0; k < 512/32; k++) {%>
+	p += uint32_popCount(x.w<%printf("%d",k);%>);<%}%>
+	return p;
+}
+
+unsigned int ap_uint_1024_pop_count(ap_uint_1024 x)
+{
+	unsigned int p=0;
+<%for (int k=0; k < 1024/32; k++) {%>
+	p += uint32_popCount(x.w<%printf("%d",k);%>);<%}%>
+	return p;
+}
+
+unsigned int uint32_manhattan_distance_a_and_not_b(unsigned int a, unsigned int b)
+{
+
+    unsigned int w = a & ~b;
+    return uint32_popCount(w);
+}
+
+
+
+unsigned int ap_uint_1024_manhattan_distance_a_and_not_b(ap_uint_1024 a, ap_uint_1024 b)
+{
+	unsigned int d = 0;
+<%
+	for (int i=0; i < 1024/32; i++)
+	{%>
+	d += uint32_manhattan_distance_a_and_not_b(a.w<%printf("%d", i);%>,b.w<%printf("%d", i);%>);<%}%>
+	return d;
+}
+
+
+void ap_uint_512_shift_right(ap_uint_512 x, unsigned int shift, ap_uint_512p r)
+{
+	int word_shift = shift >> 5; 	// shift / 32;
+	int bit_shift = shift & 0x1F; 	// shift % 32;
+
+	<%for (int i=0; i < 512/32; i++) {%>
+	{
+		<% { int dst_wordidx = 512/32 - 1 - i;	%>
+		int src_word_hi = <%printf("%d", dst_wordidx);%> + word_shift + 1;
+		int src_word_lo = <%printf("%d", dst_wordidx);%> + word_shift;
+
+		unsigned int whi = (src_word_hi < (512/32))? ap_uint_512_getDword(x, src_word_hi) : 0;
+		unsigned int wlo = (src_word_lo < (512/32))? ap_uint_512_getDword(x, src_word_lo) : 0;
+
+		
+		r->w<%printf("%d", dst_wordidx);%> = (bit_shift == 0)? whi :  (whi << (32 - bit_shift)) | (wlo >> bit_shift);
+		<%}%>
+
+	}<%}%>
+}
+
+
+void ap_uint_1024_shift_right(ap_uint_1024 x, unsigned int shift, ap_uint_1024p r)
+{
+	int word_shift = shift >> 5; 	// shift / 32;
+	int bit_shift = shift & 0x1F; 	// shift % 32;
+
+	<%for (int i=0; i < 1024/32; i++) {%>
+	{
+		<% { int dst_wordidx = 1024/32 - 1 - i;	%>
+		int src_word_hi = <%printf("%d", dst_wordidx);%> + word_shift + 1;
+		int src_word_lo = <%printf("%d", dst_wordidx);%> + word_shift;
+
+		unsigned int whi = (src_word_hi < (1024/32))? ap_uint_1024_getDword(x, src_word_hi) : 0;
+		unsigned int wlo = (src_word_lo < (1024/32))? ap_uint_1024_getDword(x, src_word_lo) : 0;
+
+		
+		r->w<%printf("%d", dst_wordidx);%> = (bit_shift == 0)? whi :  (whi << (32 - bit_shift)) | (wlo >> bit_shift);
+		<%}%>
+
+	}<%}%>
+}
+
+
+void ap_uint_512_shift_right_self(int shift, ap_uint_512p r)
+{
+	ap_uint_512 aux;
+	ap_uint_512_set(AP_UINT_PTR(aux), AP_UINT_FROM_PTR(r));
+	ap_uint_512_shift_right(aux, shift, r);
+}
+
+/**
+* @param shift is determined by a uchar because must be < 64 
+*/
+void ap_uint_512_shift_left_bytes(ap_uint_512 x, unsigned char shift, ap_uint_512p r)
+{
+	int word_shift = shift >> 2; 	// shift / 4;
+	int byte_shift = shift & 0x3; 	// shift % 4;
+
+	<%for (int i=0; i < 512/32; i++) {%>
+	{
+		<% { int dst_wordidx = 512/32 - 1 - i;	%>
+		int src_word_hi = <%printf("%d", dst_wordidx);%> - word_shift;
+		int src_word_lo = <%printf("%d", dst_wordidx);%> - word_shift -1;
+
+		unsigned int whi = (src_word_hi >= 0)? ap_uint_512_getDword(x, src_word_hi) : 0;
+		unsigned int wlo = (src_word_lo >= 0)? ap_uint_512_getDword(x, src_word_lo) : 0;
+
+		<%
+		// |whi |wlo |
+		// |3210|3210|
+		// |   *|*** | = whi << 3 | wlo >> 1
+		%>
+		r->w<%printf("%d", dst_wordidx);%> = (byte_shift == 0)? whi :  (whi << (8 * byte_shift)) | (wlo >> (8 * (4-byte_shift)));
+		<%}%>
+
+	}<%}%>
+}
+
+
+void ap_uint_1024_shift_left_bytes(ap_uint_1024 x, unsigned char shift, ap_uint_1024p r)
+{
+	int word_shift = shift >> 2; 	// shift / 4;
+	int byte_shift = shift & 0x3; 	// shift % 4;
+
+	<%for (int i=0; i < 1024/32; i++) {%>
+	{
+		<% { int dst_wordidx = 1024/32 - 1 - i;	%>
+		int src_word_hi = <%printf("%d", dst_wordidx);%> - word_shift;
+		int src_word_lo = <%printf("%d", dst_wordidx);%> - word_shift -1;
+
+		unsigned int whi = (src_word_hi >= 0)? ap_uint_1024_getDword(x, src_word_hi) : 0;
+		unsigned int wlo = (src_word_lo >= 0)? ap_uint_1024_getDword(x, src_word_lo) : 0;
+
+		<%
+		// |whi |wlo |
+		// |3210|3210|
+		// |   *|*** | = whi << 3 | wlo >> 1
+		%>
+		r->w<%printf("%d", dst_wordidx);%> = (byte_shift == 0)? whi :  (whi << (8 * byte_shift)) | (wlo >> (8 * (4-byte_shift)));
+		<%}%>
+
+	}<%}%>
+}
+
+void ap_uint_512_shift_left(ap_uint_512 x, unsigned int shift, ap_uint_512p r)
+{
+	int word_shift = shift >> 5; 	// shift / 32;
+	int bit_shift = shift & 0x1F; 	// shift % 32;
+
+	<%for (int i=0; i < 512/32; i++) {%>
+	{
+		<% { int dst_wordidx = 512/32 - 1 - i;	%>
+		int src_word_hi = <%printf("%d", dst_wordidx);%> - word_shift;
+		int src_word_lo = <%printf("%d", dst_wordidx);%> - word_shift -1;
+
+		unsigned int whi = (src_word_hi >= 0)? ap_uint_512_getDword(x, src_word_hi) : 0;
+		unsigned int wlo = (src_word_lo >= 0)? ap_uint_512_getDword(x, src_word_lo) : 0;
+
+		
+		r->w<%printf("%d", dst_wordidx);%> = (bit_shift == 0)? whi :  (whi << bit_shift) | (wlo >> (32-bit_shift));
+		<%}%>
+
+	}<%}%>
+}
+
+void ap_uint_1024_shift_left(ap_uint_1024 x, unsigned int shift, ap_uint_1024p r)
+{
+	int word_shift = shift >> 5; 	// shift / 32;
+	int bit_shift = shift & 0x1F; 	// shift % 32;
+
+	<%for (int i=0; i < 1024/32; i++) {%>
+	{
+		<% { int dst_wordidx = 1024/32 - 1 - i;	%>
+		int src_word_hi = <%printf("%d", dst_wordidx);%> - word_shift;
+		int src_word_lo = <%printf("%d", dst_wordidx);%> - word_shift -1;
+
+		unsigned int whi = (src_word_hi >= 0)? ap_uint_1024_getDword(x, src_word_hi) : 0;
+		unsigned int wlo = (src_word_lo >= 0)? ap_uint_1024_getDword(x, src_word_lo) : 0;
+
+		
+		r->w<%printf("%d", dst_wordidx);%> = (bit_shift == 0)? whi :  (whi << bit_shift) | (wlo >> (32-bit_shift));
+		<%}%>
+
+	}<%}%>
+}
+
+void ap_uint_512_shift_left_self(int shift, ap_uint_512p r)
+{
+	ap_uint_512 aux;
+	ap_uint_512_set(AP_UINT_PTR(aux), AP_UINT_FROM_PTR(r));
+	ap_uint_512_shift_left(aux, shift, r);
+}
+
+
+void ap_uint_512_print(ap_uint_512 r)
+{
+	printf("0x");
+
+	for (int i=0; i < 512/32; i++)
+		printf("%08X ", ap_uint_512_getDword(r, (512/32)-1-i));
+}
+
+
+void ap_uint_512_printBinHigh(ap_uint_512 r, int len)
+{
+	for (int i=0; i < len; i++)
+	{
+		int bit = ap_uint_512_get_bit(r, 512-1-i);
+		printf("%d", bit);
+	}
+}
+
+void ap_uint_1024_printBinHigh(ap_uint_1024 r, int len)
+{
+	for (int i=0; i < len; i++)
+	{
+		int bit = ap_uint_1024_get_bit(r, 1024-1-i);
+		printf("%d", bit);
+	}
+}
+
+/**
+* Decode a value
+*/
+void ap_uint_1024_decode(unsigned int v, int bits, ap_uint_1024p ret)
+{
+#ifdef FPGA_EMULATION
+	assert(bits == 10);
+#endif
+	ap_uint_1024_zero(ret);
+	ap_uint_1024_or_bit(ret, v, 1);
+
+}
+
+
+
+void ap_uint_512_set_range_high_32(ap_uint_512p p, unsigned int offset, unsigned int size, unsigned int value)
+{
+	unsigned int mask = (1 << size) -1;
+
+	int highest_bit = 512 - 1 -  offset;
+	int lowest_bit = highest_bit + 1 - size;
+
+	int wordidx0 = highest_bit / 32;
+	int bitidx0 = highest_bit % 32;
+  
+	int wordidx1 = lowest_bit / 32;
+	int bitidx1 = lowest_bit % 32;
+
+	unsigned int high_word = ap_uint_512_getDword(AP_UINT_FROM_PTR(p), wordidx0);
+	unsigned int low_word = ap_uint_512_getDword(AP_UINT_FROM_PTR(p), wordidx1);
+
+	if (wordidx0 == wordidx1)
+	{
+		// the same word, just shift right to put lowest bit in position 0
+		// w0 |     [h        l]       |
+		// w1 |     [h        l]       |
+  		//r = (low_word >> bitidx1) & mask;
+
+		unsigned int low_mask = (mask << bitidx1);
+		unsigned int low_nmask = ~low_mask;
+		low_word = (low_word & low_nmask) | (value << bitidx1);
+		ap_uint_512_setDword(p, wordidx1, low_word);
+	}
+	else
+	{
+		// different word, the high bit is in position bitidx0 and should be in size -1 
+		// w0 |                    [h  |
+		// w1 |     l]                 |
+		//r = ((high_word << (size -1 - bitidx0)) | (low_word >> bitidx1)) & mask;
+
+		unsigned int high_mask = (mask >> (size-1-bitidx0));
+		unsigned int high_nmask = ~high_mask;
+		high_word = (high_word & high_nmask) | (value >> (size-1-bitidx0));
+		ap_uint_512_setDword(p, wordidx0, high_word);
+
+		unsigned int low_mask = (mask << bitidx1);
+		unsigned int low_nmask = ~low_mask;
+		low_word = (low_word & low_nmask) | (value << bitidx1);
+		ap_uint_512_setDword(p, wordidx1, low_word);
+	}
+
+}
+
+void ap_uint_1024_set_range_high_32(ap_uint_1024p p, unsigned int offset, unsigned int size, unsigned int value)
+{
+	unsigned int mask = (1 << size) -1;
+
+	int highest_bit = 1024 - 1 -  offset;
+	int lowest_bit = highest_bit + 1 - size;
+
+	int wordidx0 = highest_bit / 32;
+	int bitidx0 = highest_bit % 32;
+  
+	int wordidx1 = lowest_bit / 32;
+	int bitidx1 = lowest_bit % 32;
+
+	unsigned int high_word = ap_uint_1024_getDword(AP_UINT_FROM_PTR(p), wordidx0);
+	unsigned int low_word = ap_uint_1024_getDword(AP_UINT_FROM_PTR(p), wordidx1);
+
+	if (wordidx0 == wordidx1)
+	{
+		// the same word, just shift right to put lowest bit in position 0
+		// w0 |     [h        l]       |
+		// w1 |     [h        l]       |
+  		//r = (low_word >> bitidx1) & mask;
+
+		unsigned int low_mask = (mask << bitidx1);
+		unsigned int low_nmask = ~low_mask;
+		low_word = (low_word & low_nmask) | (value << bitidx1);
+		ap_uint_1024_setDword(p, wordidx1, low_word);
+	}
+	else
+	{
+		// different word, the high bit is in position bitidx0 and should be in size -1 
+		// w0 |                    [h  |
+		// w1 |     l]                 |
+		//r = ((high_word << (size -1 - bitidx0)) | (low_word >> bitidx1)) & mask;
+
+		unsigned int high_mask = (mask >> (size-1-bitidx0));
+		unsigned int high_nmask = ~high_mask;
+		high_word = (high_word & high_nmask) | (value >> (size-1-bitidx0));
+		ap_uint_1024_setDword(p, wordidx0, high_word);
+
+		unsigned int low_mask = (mask << bitidx1);
+		unsigned int low_nmask = ~low_mask;
+		low_word = (low_word & low_nmask) | (value << bitidx1);
+		ap_uint_1024_setDword(p, wordidx1, low_word);
+	}
+
+}
+
+
+/**
+* Return the number of bits (size) from the starting high bit start of the word p
+*/
+unsigned int ap_uint_512_range_high_32(ap_uint_512 p, unsigned int offset, unsigned int size)
+{
+	unsigned int r = 0;
+	unsigned int mask = (1 << size) -1;
+
+	int highest_bit = 512 - 1 -  offset;
+	int lowest_bit = highest_bit + 1 - size;
+
+	int wordidx0 = highest_bit / 32;
+	int bitidx0 = highest_bit % 32;
+  
+	int wordidx1 = lowest_bit / 32;
+	int bitidx1 = lowest_bit % 32;
+
+	unsigned int high_word = ap_uint_512_getDword(p, wordidx0);
+	unsigned int low_word = ap_uint_512_getDword(p, wordidx1);
+
+	if (wordidx0 == wordidx1)
+	{
+		// the same word, just shift right to put lowest bit in position 0
+		// w0 |     [h        l]       |
+		// w1 |     [h        l]       |
+  		r = (low_word >> bitidx1) & mask;
+	}
+	else
+	{
+		// different word, the high bit is in position bitidx0 and should be in size -1 
+		// w0 |                    [h  |
+		// w1 |     l]                 |
+		r = ((high_word << (size -1 - bitidx0)) | (low_word >> bitidx1)) & mask;
+	}
+
+#ifdef FPGA_DEBUG
+	//printf("range[%d]=", offset);
+	//printf(" (%d)", r);
+	//printf("\n");
+#endif
+
+	return r;
+}
+
+unsigned int ap_uint_1024_range_high_32(ap_uint_1024 p, unsigned int offset, unsigned int size)
+{
+	unsigned int r = 0;
+	unsigned int mask = (1 << size) -1;
+
+	int highest_bit = 1024 - 1 -  offset;
+	int lowest_bit = highest_bit + 1 - size;
+
+	int wordidx0 = highest_bit / 32;
+	int bitidx0 = highest_bit % 32;
+  
+	int wordidx1 = lowest_bit / 32;
+	int bitidx1 = lowest_bit % 32;
+
+	unsigned int high_word = ap_uint_1024_getDword(p, wordidx0);
+	unsigned int low_word = ap_uint_1024_getDword(p, wordidx1);
+
+	if (wordidx0 == wordidx1)
+	{
+		// the same word, just shift right to put lowest bit in position 0
+		// w0 |     [h        l]       |
+		// w1 |     [h        l]       |
+  		r = (low_word >> bitidx1) & mask;
+	}
+	else
+	{
+		// different word, the high bit is in position bitidx0 and should be in size -1 
+		// w0 |                    [h  |
+		// w1 |     l]                 |
+		r = ((high_word << (size -1 - bitidx0)) | (low_word >> bitidx1)) & mask;
+	}
+
+#ifdef FPGA_DEBUG
+	//printf("range[%d]=", offset);
+	//printf(" (%d)", r);
+	//printf("\n");
+#endif
+
+	return r;
+}
+
+
+#ifdef FPGA_DEBUG
+
+void test_my_ap_uint()
+{
+	ap_uint_512 v;
+	ap_uint_512_setLowByte(AP_UINT_PTR(v), 0, 0xAAAA);
+	
+	printf("1) Initial V=");
+	ap_uint_512_print(v);
+	printf("\n");
+	
+	ap_uint_512_shift_left_self(32, AP_UINT_PTR(v));
+	
+	printf("2) Shift Left (32bits) V=");
+	ap_uint_512_print(v);
+	printf("\n");
+	
+	ap_uint_512_shift_right_self(16, AP_UINT_PTR(v));
+	
+	printf("3) Shift Right (16bits) V=");
+	ap_uint_512_print(v);
+	printf("\n");	
+	
+	printf("4) SetByte 0 V=");
+	ap_uint_512_setLowByte(AP_UINT_PTR(v), 0, 0x55);
+	ap_uint_512_shift_left_self(8, AP_UINT_PTR(v));
+	ap_uint_512_setLowByte(AP_UINT_PTR(v), 0, 0x44);
+	ap_uint_512_print(v);
+	printf("\n");	
+
+	printf("5) SetLow Ones 35 V=");
+	ap_uint_512_onesLow(AP_UINT_PTR(v), 35);
+	ap_uint_512_print(v);
+	printf("\n");	
+
+	unsigned char b = ap_uint_512_getLowByte(v, 1);
+	printf("6) GetByte [1] = 0x%02X\n", b);
+
+}
+
+#endif
+

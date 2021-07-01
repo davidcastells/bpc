@@ -1,0 +1,601 @@
+<%
+#define BASE_SIZE 2
+
+#include <math.h>
+#include <memory>
+#include <string>
+#include <stdexcept>
+#include <stdarg.h>
+
+using namespace std;
+
+
+string format(const char *fmt, ...)
+{
+    std::string result = "";
+
+    char buffer[256];
+    va_list args;
+    va_start (args, fmt);
+    vsprintf (buffer,fmt, args);
+    
+    result.append(buffer);
+    
+    va_end (args);
+  
+    return result;
+}
+
+
+int max(int a, int b)
+{
+	if (a > b) 
+		return a; 
+	else
+		return b;
+}
+
+int abs(int a)
+{
+	if (a < 0) return -a;
+	else return a;
+}
+
+void inline_ap_uint_512_get_bit(const char* x, int bit)
+{
+	int wordidx = bit >> 5; // int wordidx = bit / 32;
+	int bitidx = bit & 0x1F; // int bitidx = (bit % 32);
+
+	printf("((%s.w%d >> %d)&1)", x, wordidx, bitidx);
+}
+
+void inline_ap_uint_512_get_bit_or_one(const char* x, int bit)
+{
+	if (bit >= 512 || bit < 0)
+		printf("1");
+	else
+		inline_ap_uint_512_get_bit(x, bit);
+}
+
+void inline_ap_uint_1024_get_bit(const char* x, int bit)
+{
+	int wordidx = bit >> 5; // int wordidx = bit / 32;
+	int bitidx = bit & 0x1F; // int bitidx = (bit % 32);
+
+	printf("((%s.w%d >> %d)&1)", x, wordidx, bitidx);
+}
+
+void inline_ap_uint_1024_get_bit_or_one(const char* x, int bit)
+{
+	if (bit >= 1024 || bit < 0)
+		printf("1");
+	else
+		inline_ap_uint_512_get_bit(x, bit);
+}
+
+
+#ifdef ENTRY_TYPE_2
+
+void inlineEqualBases(const char* p, int i, const char* t,  int j)
+{
+
+	int srcidx0 = 1024 - 1 -i*2;
+	int srcidx1 = 1024 - 2 -i*2;
+
+	int srcjdx0 = 1024 - 1 -j*2;
+	int srcjdx1 = 1024 - 2 -j*2;
+
+	printf(" ((" );
+	inline_ap_uint_1024_get_bit(p, srcidx0);
+	printf(" ^ ");
+	inline_ap_uint_1024_get_bit(t, srcjdx0);
+	printf(") | (");
+	inline_ap_uint_1024_get_bit(p, srcidx1);
+	printf(" ^ ");
+	inline_ap_uint_1024_get_bit(t, srcjdx1);
+	printf(")) ^1 ");
+
+}
+
+void inlinePrintBases(const char* p, int i, const char* t,  int j)
+{
+
+	int srcidx0 = 1024 - 1 -i*2;
+	int srcidx1 = 1024 - 2 -i*2;
+
+	int srcjdx0 = 1024 - 1 -j*2;
+	int srcjdx1 = 1024 - 2 -j*2;
+
+	printf("{\n");
+	printf("   int pc = ");
+	inline_ap_uint_1024_get_bit(p, srcidx0);
+	printf(" << 1 | ");
+	inline_ap_uint_1024_get_bit(p, srcidx1);
+	printf(";\n");
+
+	printf("    int tc = ");
+	inline_ap_uint_1024_get_bit(t, srcjdx0);
+	printf(" << 1 | ");
+	inline_ap_uint_1024_get_bit(t, srcjdx1);
+	printf(";\n");
+
+	printf(" char sc[]={'A','C','G','T'};\n");
+
+	printf(" printf(\"%%c = %%c ?\n\", sc[pc], sc[tc]); ");
+	printf("}\n");
+}
+
+#else
+
+void inlineEqualBases(const char* p, int i, const char* t,  int j)
+{
+
+	int srcidx0 = 512 - 1 -i*2;
+	int srcidx1 = 512 - 2 -i*2;
+
+	int srcjdx0 = 512 - 1 -j*2;
+	int srcjdx1 = 512 - 2 -j*2;
+
+	printf(" ((" );
+	inline_ap_uint_512_get_bit(p, srcidx0);
+	printf(" ^ ");
+	inline_ap_uint_512_get_bit(t, srcjdx0);
+	printf(") | (");
+	inline_ap_uint_512_get_bit(p, srcidx1);
+	printf(" ^ ");
+	inline_ap_uint_512_get_bit(t, srcjdx1);
+	printf(")) ^ 1");
+
+}
+
+void inlinePrintBases(const char* p, int i, const char* t,  int j)
+{
+
+	int srcidx0 = 512 - 1 -i*2;
+	int srcidx1 = 512 - 2 -i*2;
+
+	int srcjdx0 = 512 - 1 -j*2;
+	int srcjdx1 = 512 - 2 -j*2;
+
+	printf("{\n");
+	printf("   int pc = ");
+	inline_ap_uint_512_get_bit(p, srcidx0);
+	printf(" << 1 | ");
+	inline_ap_uint_512_get_bit(p, srcidx1);
+	printf(";\n");
+
+	printf("    int tc = ");
+	inline_ap_uint_512_get_bit(t, srcjdx0);
+	printf(" << 1 | ");
+	inline_ap_uint_512_get_bit(t, srcjdx1);
+	printf(";\n");
+	
+	printf("    char sc[]={'A','C','G','T'};\n");
+
+	printf("    printf(\"%%c = %%c ?\\n\", sc[pc], sc[tc]); ");
+	printf("}\n");
+
+}
+
+#endif
+
+
+void inlineNewMin(string s_type, string d_var, string sex, bool& isInit)
+{
+	if (!isInit)
+	{
+		printf("\t%s %s = %s;\n", s_type.c_str(), d_var.c_str(), sex.c_str());
+		isInit = true;
+	}
+	else
+		printf("\t%s = min(%s, %s);\n", d_var.c_str(), d_var.c_str(), sex.c_str());
+}
+
+int isFarFromDiag(int x, int y)
+{
+	int d = abs(x-BPC_THRESHOLD-y);	// we substract BPC_THRESHOLD becaus the main diagonal starts at BPC_THRESHOLD
+	return (d > (BPC_THRESHOLD*2));
+}
+
+int inEdge(int x, int y)
+{
+	int d = abs(x-BPC_THRESHOLD-y);	// we substract BPC_THRESHOLD because the main diagonal starts at BPC_THRESHOLD
+	return (d == (BPC_THRESHOLD*2)+1);
+}
+
+%>
+#include "../adapter.cl"
+
+#pragma OPENCL EXTENSION cl_intel_arbitrary_precision_integers : enable
+
+<%
+// Bit-Parallel Method based on Diagonals
+
+int BPC_THRESHOLD_BITS = ceil(log(2*2*BPC_THRESHOLD+1) / log(2));
+
+%>
+
+
+unsigned int satAdd(unsigned int a, unsigned int b)
+{
+	// final mask
+	int final_mask = (1 << (<%printf("%d", BPC_THRESHOLD_BITS+1);%>) ) -1;
+
+
+	// bits
+	int lev_bits = <%printf("%d", BPC_THRESHOLD_BITS);%>;
+	int mask = 1 << lev_bits;
+	int isASaturated = (a >> lev_bits) & 1;
+	if (isASaturated)
+		return mask & final_mask;
+	else
+		return (a + b) & final_mask;
+}
+
+<%
+#ifdef ENTRY_TYPE_2
+%>
+unsigned int bpc(ap_uint_1024 pattern,  int plen, ap_uint_1024 text,  int tlen)
+{
+<%
+#else
+%>
+unsigned int bpc(ap_uint_512 pattern,  int plen, ap_uint_512 text,  int tlen)
+{
+<%
+#endif
+
+	for (int x = 0; x <= TEXT_LEN; x++)
+	{
+		for (int y = 0; y <= PATTERN_LEN; y++)
+		{
+			bool valInit = false;
+			string eq_var = format("eq_%d_%d", x, y);
+			string d_var = format("d_%d_%d", x, y);
+			string s_type = "unsigned int ";
+ 
+			if (x == 0 && y > 0)
+			{
+				printf("\tunsigned char vp_%d_%d = 1;\n", x, y);
+				printf("\tunsigned char vn_%d_%d = 0;\n", x, y);
+			}
+			else if (y == 0 && x > 0)
+			{
+				printf("\tunsigned char hp_%d_%d = 0;\n", x, y);
+				printf("\tunsigned char hn_%d_%d = 0;\n", x, y);
+			}
+			else if (!isFarFromDiag(x,y) && (x > 0) && (y > 0))
+			{
+
+				// equality variable
+
+				printf("\tunsigned char %s = ", eq_var.c_str());
+				inlineEqualBases("pattern", y-1, "text", x-1);
+				printf(";\n");
+
+				printf("\tunsigned char d0_%d_%d = ((eq_%d_%d) | vn_%d_%d | hn_%d_%d ) & 0x1;\n", x, y, x, y, x-1, y, x, y-1);
+				printf("\tunsigned char vp_%d_%d = (hn_%d_%d | ~(hp_%d_%d | d0_%d_%d)) & 0x1;\n", x, y, x, y-1, x, y-1, x, y);
+				printf("\tunsigned char vn_%d_%d = (hp_%d_%d & d0_%d_%d) & 0x1;\n", x, y, x, y-1, x, y);
+				printf("\tunsigned char hp_%d_%d = (vn_%d_%d | ~(vp_%d_%d | d0_%d_%d)) & 0x1;\n", x, y, x-1, y, x-1, y, x, y);
+				printf("\tunsigned char hn_%d_%d = (vp_%d_%d & d0_%d_%d) & 0x1;\n", x, y,  x-1, y, x, y);
+			}
+			else if (inEdge(x,y))
+			{
+				if (x < y)
+				{
+					printf("\tunsigned char vp_%d_%d = 1; // edge\n", x, y);
+					printf("\tunsigned char vn_%d_%d = 0; // edge\n", x, y);
+				}
+				else
+				{
+					printf("\tunsigned char hp_%d_%d = 1; // edge\n", x, y);
+					printf("\tunsigned char hn_%d_%d = 0; // edge\n", x, y);
+				}				
+			}
+		}
+
+	}
+
+%>
+#ifdef FPGA_DEBUG
+<%
+	// DEBUG
+	
+
+	%>printf("D0: Table\n");<%
+	for (int y = 0; y <= PATTERN_LEN; y++)
+	{
+		for (int x = 0; x <= TEXT_LEN; x++)
+		{ 
+			if (x == 0 && y > 0)
+			{
+%>
+		printf(",");<%
+			}
+			else if (y == 0 && x > 0)
+			{
+%>
+		printf(",");<%
+			}
+			else if (!isFarFromDiag(x,y) && (x > 0) && (y > 0))
+			{
+
+				// equality variable
+%>
+	printf("%d,", <%printf("d0_%d_%d", x, y);%>);
+<%
+			}
+else
+{
+%>
+		printf(",");<%
+}
+		}%>
+		printf("\n");<%
+
+	}
+
+
+
+	%>printf("HP: Table\n");<%
+	for (int y = 0; y <= PATTERN_LEN; y++)
+	{
+		for (int x = 0; x <= TEXT_LEN; x++)
+		{
+ 
+			if (x == 0 && y > 0)
+			{
+%>		printf(",");<%
+			}
+			else if (y == 0 && x > 0)
+			{
+%>
+				printf("%d,", <%printf("hp_%d_%d", x, y);%>);
+<%
+			}
+			else if (!isFarFromDiag(x,y) && (x > 0) && (y > 0))
+			{
+%>
+				printf("%d,", <%printf("hp_%d_%d", x, y);%>);
+<%
+			}
+			else if (inEdge(x,y))
+			{
+				if (x < y)
+				{
+%>
+		printf(",");<%
+				}
+				else
+				{
+%>
+				printf("%d,", <%printf("hp_%d_%d", x, y);%>);
+<%
+				}				
+			}
+			else
+			{
+%>
+		printf(",");<%
+			}
+		}%>
+		printf("\n");<%
+
+	}
+
+	%>printf("HN: Table\n");<%
+	
+
+	for (int y = 0; y <= PATTERN_LEN; y++)
+	{ 
+		for (int x = 0; x <= TEXT_LEN; x++)
+		{
+			if (x == 0 && y > 0)
+			{
+%>
+		printf(",");<%
+			}
+			else if (y == 0 && x > 0)
+			{
+%>
+	printf("%d,", <%printf("hn_%d_%d", x, y);%>);
+<%			}
+			else if (!isFarFromDiag(x,y) && (x > 0) && (y > 0))
+			{
+%>
+	printf("%d,", <%printf("hn_%d_%d", x, y);%>);
+<%
+			}
+			else if (inEdge(x,y))
+			{
+				if (x < y)
+				{
+%>
+		printf(",");<%
+				}
+				else
+				{
+%>
+	printf("%d,", <%printf("hn_%d_%d", x, y);%>);
+<%
+				}				
+			}
+			else
+			{
+%>
+		printf(",");<%
+			}
+		}%>
+		printf("\n");<%
+
+	}
+
+	%>printf("VP: Table\n");<%
+
+
+	for (int y = 0; y <= PATTERN_LEN; y++)
+	{
+		for (int x = 0; x <= TEXT_LEN; x++)
+		{ 
+			if (x == 0 && y > 0)
+			{
+%>
+	printf("%d,", <%printf("vp_%d_%d", x, y);%>);
+<%
+			}
+			else if (y == 0 && x > 0)
+			{
+%>
+		printf(",");<%
+			}
+			else if (!isFarFromDiag(x,y) && (x > 0) && (y > 0))
+			{
+%>
+	printf("%d,", <%printf("vp_%d_%d", x, y);%>);
+<%
+			}
+			else if (inEdge(x,y))
+			{
+				if (x < y)
+				{
+%>
+	printf("%d,", <%printf("vp_%d_%d", x, y);%>);
+<%				}
+				else
+				{
+%>
+		printf(",");<%
+				}				
+			}else
+			{
+%>
+		printf(",");<%
+			}
+		}%>
+		printf("\n");<%
+
+	}
+
+
+	%>printf("VN: Table\n");<%
+	
+	for (int y = 0; y <= PATTERN_LEN; y++)
+	{
+		for (int x = 0; x <= TEXT_LEN; x++)
+		{ 
+			if (x == 0 && y > 0)
+			{
+%>
+	printf("%d,", <%printf("vn_%d_%d", x, y);%>);
+<%
+			}
+			else if (y == 0 && x > 0)
+			{
+%>printf(",");<%			}
+			else if (!isFarFromDiag(x,y) && (x > 0) && (y > 0))
+			{
+%>
+	printf("%d,", <%printf("vn_%d_%d", x, y);%>);
+<%
+			}
+			else if (inEdge(x,y))
+			{
+				if (x < y)
+				{
+%>
+	printf("%d,", <%printf("vn_%d_%d", x, y);%>);
+<%				}
+				else
+				{
+%>printf(",");<%
+				}				
+			}else
+			{
+%>
+		printf(",");<%
+			}
+		}%>
+		printf("\n");<%
+
+	}
+
+
+
+%>
+#endif
+
+	// Add the main diagonal
+	int d = 0; 
+
+<%	for (int i = 1; i <= PATTERN_LEN; i++)
+	{
+		printf("\td = satAdd(d ,  (~(d0_%d_%d)) & 1);\n", i+BPC_THRESHOLD, i);
+
+%>
+#ifdef FPGA_DEBUG
+	printf("<%printf("d0_%d_%d", i+BPC_THRESHOLD, i);%>=%d\n", <%printf("d0_%d_%d", i+BPC_THRESHOLD, i);%>);
+#endif
+<%
+	}
+%>	
+
+	int dp_<%printf("%d_%d", PATTERN_LEN+BPC_THRESHOLD, PATTERN_LEN);%>  = d;
+	int dm_<%printf("%d_%d", PATTERN_LEN+BPC_THRESHOLD, PATTERN_LEN);%>  = d;
+
+	// Now compute the neighbouring cells
+<%	for (int i = 1; i <= BPC_THRESHOLD; i++)
+	{%>
+	int dp_<%printf("%d_%d", PATTERN_LEN+i+BPC_THRESHOLD, PATTERN_LEN);
+		%>= dp_<%printf("%d_%d", PATTERN_LEN+i+BPC_THRESHOLD-1, PATTERN_LEN);
+		%> + hp_<%printf("%d_%d", PATTERN_LEN+i+BPC_THRESHOLD, PATTERN_LEN); 
+		%> - hn_<%printf("%d_%d", PATTERN_LEN+i+BPC_THRESHOLD, PATTERN_LEN);%>;
+
+	d = min(d, dp_<%printf("%d_%d", PATTERN_LEN+i+BPC_THRESHOLD, PATTERN_LEN);%>);
+<%
+	}
+%>
+
+	// Now compute the neighbouring cells
+<%	for (int i = 1; i <= BPC_THRESHOLD*2; i++)
+	{%>
+	int dm_<%printf("%d_%d", PATTERN_LEN-i+BPC_THRESHOLD, PATTERN_LEN);
+		%>= dm_<%printf("%d_%d", PATTERN_LEN-i+BPC_THRESHOLD+1, PATTERN_LEN);
+		%> - hp_<%printf("%d_%d", PATTERN_LEN-i+BPC_THRESHOLD, PATTERN_LEN); 
+		%> + hn_<%printf("%d_%d", PATTERN_LEN-i+BPC_THRESHOLD, PATTERN_LEN);%>;
+
+	d = min(d, dm_<%printf("%d_%d", PATTERN_LEN-i+BPC_THRESHOLD, PATTERN_LEN);%>);
+<%
+	}
+%>
+
+	return d;
+	
+}
+
+
+
+<%
+#ifdef ENTRY_TYPE_2
+%>
+
+unsigned int computeDistance(ap_uint_1024 pattern,  int plen, ap_uint_1024 text,  int tlen)
+{
+	return bpc(pattern,  plen, text,  plen);
+}
+
+<%
+#else
+%>
+
+unsigned int computeDistance(ap_uint_512 pattern,  int plen, ap_uint_512 text,  int tlen)
+{
+	return bpc(pattern,  plen, text,  plen);
+}
+
+<%
+#endif
+%>
+
+
+
+

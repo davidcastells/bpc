@@ -1,4 +1,16 @@
-# OpenCL pre-alignment filters Test
+# Bit-Parallel Semi-Global Levenshtein Distance on FPGA
+
+Banded approach of semi-global levenshtein distance on FPGA using OpenCL.
+
+This work was published in FPL2021.
+
+The [short] video presentation is available [here](https://www.youtube.com/watch?v=8FJtOtcGNpk&t=274s):
+
+[![Youtube video](https://github.com/davidcastells/bpc/blob/master/video.png?raw=true)](https://www.youtube.com/watch?v=8FJtOtcGNpk&t=274s)
+
+
+
+## OpenCL pre-alignment filters Test
 
 This is a test application to test the effectiveness of our FPGA-based pre-alignment filter based on a bit parallel strategy using diagonal bit vectors. We provide the code we have used in our FPL2021 publication "as is". Improvements in the proposal will probably be uploaded to future repositories.
 
@@ -9,7 +21,7 @@ The test main goal is to build synthetic sequences with a number of controlled e
 
 The source code embedds the edlib (https://github.com/Martinsos/edlib/) to check the number of errors when necessary.
 
-## Modes of operation
+### Modes of operation
 
 The application can work in two modes of operation.
 
@@ -19,7 +31,7 @@ The application can work in two modes of operation.
 -- Multiple Synthetic Test
    In this mode the user provides the characteristics of the features that are randomly created. 
 
-## Options
+### Options
 
 | Parameter | Description |
 |-----|----------------|
@@ -35,7 +47,7 @@ The application can work in two modes of operation.
 | -t <string> | The text sequence for a single test |
 | -p <string> | The pattern sequence for a single test |
 
-## Examples
+### Examples
 
 filter-filter -pid 0 -ES 4 -th 3 -tl 100 -pl 120 -n 10
 

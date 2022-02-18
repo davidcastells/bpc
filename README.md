@@ -49,6 +49,22 @@ The application can work in two modes of operation.
 
 ### Examples
 
-filter-filter -pid 0 -ES 4 -th 3 -tl 100 -pl 120 -n 10
+filter-test -pid 0 -ES 4 -th 3 -tl 100 -pl 120 -n 10
 
 It creates 10 sequence pairs. The text length and pattern length are all equal to 100. The pattern has 4 substitution errors compared with the text and the detection threshold is set to 3. The OpenCL platform 0 is used and the SHD algorithm is tested.
+
+   
+### Citation
+   
+<pre>
+@INPROCEEDINGS{9556490,
+  author={Castells-Rufas, David and Marco-Sola, Santiago and Aguado-Puig, Quim and Espinosa-Morales, Antonio 
+          and Moure, Juan Carlos and Alvarez, Lluc and Moretó, Miquel},
+  booktitle={2021 31st International Conference on Field-Programmable Logic and Applications (FPL)}, 
+  title={OpenCL-based FPGA Accelerator for Semi-Global Approximate String Matching Using Diagonal Bit-Vectors}, 
+  year={2021},
+  volume={},
+  number={},
+  pages={174-178},
+  doi={10.1109/FPL53798.2021.00036}}
+  </pre>
